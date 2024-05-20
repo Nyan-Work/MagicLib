@@ -1,0 +1,120 @@
+name: step.publish
+on:
+  workflow_call:
+    inputs:
+      publish_channel:
+        type: string
+        required: true
+      publish_mc_ver:
+        type: string
+        required: true
+      publish_platform:
+        type: string
+        required: true
+      publish_target_release_tag:
+        description: |-
+          The tag of the release you want to append the artifact to.
+        type: string
+        required: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Allow the mod publish step to add asserts to release
+    # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: build-artifacts
+      - name: Get git info
+        id: get_git_info
+        run: |
+          short_sha=$(echo ${GITHUB_SHA} | cut -c1-7)
+          commit_count=$(git log | grep -e '^commit [a-zA-Z0-9]*' | wc -l)
+          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
+          echo "commit_count=$commit_count" >> $GITHUB_OUTPUT
+      - name: Read Properties mod info
+        id: mod_info
+        uses: christian-draeger/read-properties@1.1.1
+        with:
+          path: gradle.properties
+          properties: 'mod.name mod.version'
+      - name: Publish Minecraft Mods (Dev Channel)
+        if: ${{ inputs.publish_channel == 'dev' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          # modrinth-id:
+          # modrinth-token: ${{ secrets.MODRINTH_API_TOKEN }}
+          # curseforge-id:
+          # curseforge-token: ${{ secrets.CF_API_TOKEN }}
+          github-tag: ${{ github.ref_name }}.${{ steps.get_git_info.outputs.commit_count }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-prerelease: true
+          github-generate-changelog: true
+          github-files: |
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/libs/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/unpublish/!(*-@(dev|sources|javadoc|empty)).jar
+          files: |
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/libs/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/unpublish/!(*-@(dev|sources|javadoc|empty)).jar
+          name: '[CI#${{ github.run_number }}]${{ steps.mod_info.outputs.mod-name }} ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}+${{ steps.get_git_info.outputs.short_sha }}'
+          version: ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}+${{ steps.get_git_info.outputs.short_sha }}
+          version-type: alpha
+          changelog: |
+            **This version is automatically released by CI Build**
+            Latest commit log:
+            ${{ github.event.head_commit.message }}
+          loaders: |
+            ${{ inputs.publish_platform }}
+          game-versions: |
+            ${{ inputs.publish_mc_ver }}
+          game-version-filter: any
+          dependencies: |
+            carpet(optional)
+            malilib(optional)
+          retry-attempts: 2
+          retry-delay: 10000
+      - name: Publish Minecraft Mods (Stable Channel)
+        if: ${{ inputs.publish_channel == 'stable' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          # modrinth-id:
+          # modrinth-token: ${{ secrets.MODRINTH_API_TOKEN }}
+          # curseforge-id:
+          # curseforge-token: ${{ secrets.CF_API_TOKEN }}
+          github-tag: ${{ inputs.publish_target_release_tag }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-generate-changelog: true
+          github-files: |
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/libs/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/unpublish/!(*-@(dev|sources|javadoc|empty)).jar
+          files: |
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/libs/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
+            build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/${{ inputs.publish_mc_ver }}/build/tmp/submods/unpublish/!(*-@(dev|sources|javadoc|empty)).jar
+          name: '${{ steps.mod_info.outputs.mod-name }} ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}+${{ steps.get_git_info.outputs.short_sha }}'
+          version: ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}
+          version-type: release
+          changelog: ${{ github.event.release.body }}
+          loaders: |
+            ${{ inputs.publish_platform }}
+          game-versions: |
+            ${{ inputs.publish_mc_ver }}
+          game-version-filter: any
+          dependencies: |
+            carpet(optional)
+            malilib(optional)
+          retry-attempts: 2
+          retry-delay: 10000
