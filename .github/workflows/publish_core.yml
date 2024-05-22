@@ -55,10 +55,6 @@ jobs:
             build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
           name: '[CI#${{ github.run_number }}]${{ steps.mod_info.outputs.mod-name }} ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}+${{ steps.get_git_info.outputs.short_sha }}'
           version: ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}+${{ steps.get_git_info.outputs.short_sha }}
-          changelog: |
-            **This version is automatically released by CI Build**
-            Latest commit log:
-            ${{ github.event.head_commit.message }}
       - name: Publish Minecraft Fabric Mods (Stable Channel)
         if: ${{ inputs.publish_channel == 'stable' }}
         uses: Kir-Antipov/mc-publish@v3.3
@@ -69,5 +65,6 @@ jobs:
             build-artifacts/magiclib-wrapper/${{ inputs.publish_platform }}/build/tmp/submods/publish/!(*-@(dev|sources|javadoc|empty)).jar
           name: '${{ steps.mod_info.outputs.mod-name }} ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}+${{ steps.get_git_info.outputs.short_sha }}'
           version: ${{ steps.mod_info.outputs.mod-version }}.${{ steps.get_git_info.outputs.commit_count }}
+          github-changelog: ${{ format('{0}{1}', github.event.release.body, steps.get_release.outputs.body) }}
           retry-attempts: 2
           retry-delay: 10000
